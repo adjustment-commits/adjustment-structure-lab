@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thorax-Scapula Separation MVP</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111111">
+<link rel="stylesheet" href="style.css">
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+</head>
+<body>
+<header>
+<h1>胸郭 × 肩甲帯 分離モニタ</h1>
+<div id="angleDisplay">0°</div>
+</header>
+<main>
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+</main>
+<footer>
+<p>Thorax-Scapula Separation MVP</p>
+</footer>
+<script src="main.js"></script>
+</body>
+</html>
