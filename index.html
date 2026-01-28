@@ -13,11 +13,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 </head>
 <body>
-<header>
-<h1>胸郭 × 肩甲帯 分離モニタ</h1>
-<div id="angleDisplay">0°</div>
-<button id="startBtn">START CAMERA</button>
-</header>
+
+ <header>
+ <h1>胸郭 × 肩甲帯 分離モニタ</h1>
+ <div id="angleDisplay">0°</div>
+ <button id="startBtn">START CAMERA</button>
+ <button id="loadVideoBtn">LOAD VIDEO</button>
+ <input type="file" id="videoInput" accept="video/*" hidden>
+ </header>
 
 <main>
 <video id="video" autoplay playsinline></video>
