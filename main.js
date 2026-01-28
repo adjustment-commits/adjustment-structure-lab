@@ -1,7 +1,9 @@
-const videoElement = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
-const canvasCtx = canvasElement.getContext("2d");
-const angleDisplay = document.getElementById("angleDisplay");
+ const canvasCtx = canvasElement.getContext("2d");
+ const angleDisplay = document.getElementById("angleDisplay");
+ const startBtn = document.getElementById("startBtn");
+const loadVideoBtn = document.getElementById("loadVideoBtn");
+const videoInput = document.getElementById("videoInput");
 
 /* ———————–
 Utility
@@ -52,6 +54,31 @@ height:480
 });
 
 camera.start();
+
+/* -----------------------
+   Load Video
+----------------------- */
+
+loadVideoBtn.addEventListener("click",()=>{
+videoInput.click();
+});
+
+videoInput.addEventListener("change",(e)=>{
+const file = e.target.files[0];
+if(!file) return;
+
+const url = URL.createObjectURL(file);
+videoElement.src = url;
+videoElement.play();
+
+processVideo();
+});
+
+async function processVideo(){
+if(videoElement.paused || videoElement.ended) return;
+await pose.send({image:videoElement});
+requestAnimationFrame(processVideo);
+}
 
 /* ———————–
 Main
