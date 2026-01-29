@@ -4,6 +4,7 @@ const canvasCtx = canvasElement.getContext("2d");
 const angleDisplay = document.getElementById("angleDisplay");
 const startBtn = document.getElementById("startBtn");
 const loadVideoBtn = document.getElementById("loadVideoBtn");
+const resetBtn = document.getElementById("resetBtn");
 const videoInput = document.getElementById("videoInput");
 
 /* ===============================
@@ -61,6 +62,14 @@ Camera Start
 startBtn.addEventListener("click",()=>{
 camera.start();
 startBtn.style.display="none";
+});
+
+/* ===============================
+Reset
+=============================== */
+
+resetBtn.addEventListener("click",()=>{
+  location.reload();
 });
 
 /* ===============================
