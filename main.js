@@ -2,6 +2,7 @@ const videoElement = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
 const canvasCtx = canvasElement.getContext("2d");
 const angleDisplay = document.getElementById("angleDisplay");
+const evalDisplay = document.getElementById("evalDisplay");
 const startBtn = document.getElementById("startBtn");
 const loadVideoBtn = document.getElementById("loadVideoBtn");
 const resetBtn = document.getElementById("resetBtn");
@@ -131,6 +132,20 @@ const arm    = vector(RShoulder,RElbow);
 
 const sepAngle = angleBetween(thorax,arm);
 angleDisplay.textContent = sepAngle.toFixed(1) + "°";
+
+let evalText = "";
+
+if(sepAngle < 20){
+evalText = "分離なし：腕と胸郭が同時に動いている";
+}else if(sepAngle < 35){
+evalText = "低分離：腕主導傾向";
+}else if(sepAngle < 50){
+evalText = "実用分離：胸郭主導で腕が遅れる";
+}else{
+evalText = "高分離：強い捻転差を作れている";
+}
+
+evalDisplay.textContent = "評価：" + evalText;
 
 drawLine(LShoulder,RShoulder,"#38bdf8");
 drawLine(RShoulder,RElbow,"#facc15");
