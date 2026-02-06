@@ -9,123 +9,69 @@
 
 <style>
 html,body{
-margin:0;
-padding:0;
-width:100%;
-height:100%;
-background:#000;
-color:#fff;
-font-family:sans-serif;
-overflow:hidden;
+margin:0;padding:0;width:100%;height:100%;
+background:#000;color:#fff;font-family:sans-serif;overflow:hidden;
 }
-
-/* ===== Layout ===== */
 
 #layout{
 display:grid;
-grid-template-rows:56px 1fr 160px;
-width:100vw;
-height:100vh;
+grid-template-rows:70px 1fr 260px;
+width:100vw;height:100vh;
 }
 
-/* ===== Header ===== */
-
 .header{
-display:flex;
-gap:8px;
-padding:8px;
-background:#111;
-border-bottom:1px solid #333;
+display:flex;gap:10px;padding:10px;
+background:#111;border-bottom:1px solid #333;
 }
 
 .top-btn{
-flex:1;
-height:40px;
-background:#333;
-color:#fff;
-border:1px solid #555;
-border-radius:6px;
+flex:1;height:42px;
+background:#333;color:#fff;
+border:1px solid #555;border-radius:8px;
 font-weight:bold;
-font-size:12px;
-letter-spacing:0.05em;
 }
-
-/* ===== Main ===== */
 
 .main-view{
 position:relative;
-min-height:0;
-display:flex;
-justify-content:center;
-align-items:center;
+display:flex;justify-content:center;align-items:center;
 }
 
 canvas{
-width:100%;
-height:100%;
-object-fit:contain;
+width:100%;height:100%;object-fit:contain;
 }
 
-/* ===== Tags ===== */
-
 .tags{
-position:absolute;
-top:10px;
-left:10px;
+position:absolute;top:10px;left:10px;
 }
 
 .badge{
 background:rgba(0,0,0,0.75);
-padding:6px 10px;
-margin-bottom:6px;
+padding:6px 10px;margin-bottom:6px;
 border-left:4px solid #00ffcc;
 font-size:12px;
 }
 
-/* ===== Deck ===== */
-
 .deck{
-background:#111;
-border-top:1px solid #333;
-padding:10px;
+background:#111;border-top:1px solid #333;padding:12px;
 }
 
 .play{
-width:56px;
-height:56px;
-border-radius:50%;
-font-size:26px;
-background:#00ffcc;
-border:none;
+width:60px;height:60px;border-radius:50%;
+font-size:28px;background:#00ffcc;border:none;
 }
 
 input[type=range]{
-width:100%;
-height:26px;
-accent-color:#00ffcc;
+width:100%;height:30px;accent-color:#00ffcc;
 }
 
 .f-btn{
-margin-top:6px;
-width:100%;
-height:40px;
-background:#2a2a2a;
-color:#fff;
-border:1px solid #555;
-border-radius:6px;
-font-weight:bold;
+margin-top:8px;width:100%;height:44px;
+background:#2a2a2a;color:#fff;
+border:1px solid #555;border-radius:8px;font-weight:bold;
 }
 
-.rec{
-background:#333;
-color:#00ffcc;
-border:2px solid #00ffcc;
-}
-
-.rec-active{
-background:#ff3366!important;
-color:#fff!important;
-}
+.rec{background:#333;color:#00ffcc;border:2px solid #00ffcc;}
+.rec-active{background:#ff3366!important;color:#fff!important;}
 </style>
 </head>
 
@@ -133,37 +79,36 @@ color:#fff!important;
 
 <div id="layout">
 
-<!-- ===== Header ===== -->
+<!-- ===== HEADER ===== -->
 <div class="header">
-
 <label class="top-btn">
-LOAD VIDEO
+動画選択
 <input type="file" id="up" accept="video/*" hidden>
 </label>
 
-<select id="vw" class="top-btn">
-<option value="both">VIDEO + SKELETON</option>
-<option value="stick">SKELETON ONLY</option>
+<select id="mode" class="top-btn">
+<option value="pitch">投球</option>
+<option value="bat">打撃</option>
 </select>
 
+<select id="vw" class="top-btn">
+<option value="both">実写＋骨格</option>
+<option value="stick">骨格のみ</option>
+</select>
 </div>
 
-<!-- ===== Main ===== -->
+<!-- ===== MAIN ===== -->
 <div class="main-view">
-
 <canvas id="cv"></canvas>
 
 <div class="tags">
 <div id="tp" class="badge">胸郭×骨盤：--</div>
 <div id="ts" class="badge">胸郭×肩甲帯：--</div>
 <div id="sa" class="badge">肩甲帯×上腕：--</div>
-<div id="rir" class="badge">右肩IR：--</div>
-<div id="lir" class="badge">左肩IR：--</div>
+</div>
 </div>
 
-</div>
-
-<!-- ===== Deck ===== -->
+<!-- ===== DECK ===== -->
 <div class="deck">
 
 <button id="pp" class="play">▶</button>
@@ -186,7 +131,7 @@ LOAD VIDEO
 
 /* ===== DOM ===== */
 
-const vd=document.getElementById("vd");
+const vd=cvd=document.getElementById("vd");
 const cv=document.getElementById("cv");
 const ctx=cv.getContext("2d");
 const sk=document.getElementById("sk");
@@ -195,8 +140,6 @@ const pp=document.getElementById("pp");
 const tp=document.getElementById("tp");
 const ts=document.getElementById("ts");
 const sa=document.getElementById("sa");
-const rir=document.getElementById("rir");
-const lir=document.getElementById("lir");
 
 /* ===== Utility ===== */
 
@@ -206,13 +149,6 @@ function dot(a,b){return a.x*b.x+a.y*b.y;}
 function ang(a,b){
 const c=dot(a,b)/(mag(a)*mag(b));
 return Math.acos(Math.min(Math.max(c,-1),1))*180/Math.PI;
-}
-
-function jointAngle(a,b,c){
-const v1={x:a.x-b.x,y:a.y-b.y};
-const v2={x:c.x-b.x,y:c.y-b.y};
-const d=(v1.x*v2.x+v1.y*v2.y)/(mag(v1)*mag(v2));
-return Math.acos(Math.min(Math.max(d,-1),1))*180/Math.PI;
 }
 
 /* ===== MediaPipe ===== */
@@ -228,9 +164,6 @@ minDetectionConfidence:0.5,
 minTrackingConfidence:0.5
 });
 
-let prevR=null, prevL=null;
-const IR_THRESHOLD=120;
-
 pose.onResults(r=>{
 if(!r.image)return;
 
@@ -245,7 +178,7 @@ ctx.drawImage(r.image,0,0,cv.width,cv.height);
 if(!r.poseLandmarks)return;
 const lm=r.poseLandmarks;
 
-/* ===== ② ===== */
+/* ---- ベクトル定義 ---- */
 
 const thorax=v(lm[11],lm[12]);
 const pelvis=v(lm[23],lm[24]);
@@ -258,30 +191,17 @@ y:(lm[11].y+lm[12].y)/2
 
 const scapulaVec=v(thoraxCenter,lm[12]);
 
-tp.innerText=`胸郭×骨盤：${ang(thorax,pelvis).toFixed(1)}°`;
-ts.innerText=`胸郭×肩甲帯：${ang(thorax,scapulaVec).toFixed(1)}°`;
-sa.innerText=`肩甲帯×上腕：${ang(scapulaVec,arm).toFixed(1)}°`;
+/* ---- 角度 ---- */
 
-/* ===== ③ ===== */
+const aTP=ang(thorax,pelvis);
+const aTS=ang(thorax,scapulaVec);
+const aSA=ang(scapulaVec,arm);
 
-const rA=jointAngle(lm[12],lm[14],lm[16]);
-const lA=jointAngle(lm[11],lm[13],lm[15]);
+tp.innerText=`胸郭×骨盤：${aTP.toFixed(1)}°`;
+ts.innerText=`胸郭×肩甲帯：${aTS.toFixed(1)}°`;
+sa.innerText=`肩甲帯×上腕：${aSA.toFixed(1)}°`;
 
-if(prevR!==null){
-rir.innerText=(prevR>IR_THRESHOLD && rA<=IR_THRESHOLD)
-? "右肩IR：切替"
-: "右肩IR：--";
-}
-
-if(prevL!==null){
-lir.innerText=(prevL>IR_THRESHOLD && lA<=IR_THRESHOLD)
-? "左肩IR：切替"
-: "左肩IR：--";
-}
-
-prevR=rA; prevL=lA;
-
-/* draw */
+/* ---- 描画 ---- */
 
 draw(lm[11],lm[12],"#00ffff",6);
 draw(lm[23],lm[24],"#00ff00",6);
@@ -319,17 +239,11 @@ requestAnimationFrame(loop);
 /* ===== Controls ===== */
 
 pp.onclick=()=>{
-if(vd.paused){
-vd.play();pp.innerText="‖";
-}else{
-vd.pause();pp.innerText="▶";
-}
+if(vd.paused){vd.play();pp.innerText="‖";}
+else{vd.pause();pp.innerText="▶";}
 };
 
-sk.oninput=()=>{
-vd.currentTime=sk.value;
-seeking=true;
-};
+sk.oninput=()=>{vd.currentTime=sk.value;seeking=true;};
 sk.onchange=()=>{seeking=false;};
 
 document.getElementById("up").onchange=e=>{
@@ -339,8 +253,7 @@ vd.src=URL.createObjectURL(f);
 vd.onloadedmetadata=()=>{
 sk.max=vd.duration;
 document.getElementById("tn").innerText=vd.duration.toFixed(2);
-vd.play();
-pp.innerText="‖";
+vd.play();pp.innerText="‖";
 loop();
 };
 };
@@ -361,9 +274,7 @@ recorder.onstop=()=>{
 const blob=new Blob(chunks,{type:"video/webm"});
 const url=URL.createObjectURL(blob);
 const a=document.createElement("a");
-a.href=url;
-a.download="analysis_video.webm";
-a.click();
+a.href=url;a.download="analysis_video.webm";a.click();
 };
 recorder.start();
 btn.classList.add("rec-active");
