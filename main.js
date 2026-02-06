@@ -1,9 +1,10 @@
+/* ===============================
+ DOM
+=============================== */
+
 const videoElement = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
 const canvasCtx = canvasElement.getContext("2d");
-const playPauseBtn = document.getElementById("playPauseBtn");
-const timeSlider = document.getElementById("timeSlider");
-
 
 const angleDisplay = document.getElementById("angleDisplay");
 const evalDisplay = document.getElementById("evalDisplay");
@@ -14,13 +15,16 @@ const armScapulaPeakDisplay = document.getElementById("armScapulaPeakDisplay");
 const startBtn = document.getElementById("startBtn");
 const loadVideoBtn = document.getElementById("loadVideoBtn");
 const resetBtn = document.getElementById("resetBtn");
+const playPauseBtn = document.getElementById("playPauseBtn");
+const timeSlider = document.getElementById("timeSlider");
 const videoInput = document.getElementById("videoInput");
 
 const modeSelect = document.getElementById("modeSelect");
 let currentMode = "pitch";
 
-
-/* ===== Utility ===== */
+/* ===============================
+ Utility
+=============================== */
 
 function vector(a,b){
   return { x: b.x - a.x, y: b.y - a.y };
@@ -40,13 +44,17 @@ function angleBetween(v1,v2){
   return rad * 180 / Math.PI;
 }
 
-/* ===== Mode ===== */
+/* ===============================
+ Mode
+=============================== */
 
 modeSelect.addEventListener("change",()=>{
   currentMode = modeSelect.value;
 });
 
-/* ===== MediaPipe ===== */
+/* ===============================
+ MediaPipe Pose
+=============================== */
 
 const pose = new Pose({
   locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
@@ -62,6 +70,7 @@ pose.setOptions({
 
 pose.onResults(onResults);
 
+/* カメラ用 */
 const camera = new Camera(videoElement,{
   onFrame: async()=>{
     await pose.send({image:videoElement});
@@ -70,7 +79,19 @@ const camera = new Camera(videoElement,{
   height:480
 });
 
-/* ===== Buttons ===== */
+/* ===============================
+ Video Metadata
+=============================== */
+
+videoElement.addEventListener("loadedmetadata",()=>{
+  canvasElement.width = videoElement.videoWidth;
+  canvasElement.height = videoElement.videoHeight;
+  timeSlider.max = videoElement.duration;
+});
+
+/* ===============================
+ Buttons
+=============================== */
 
 startBtn.addEventListener("click",()=>{
   camera.start();
@@ -78,6 +99,17 @@ startBtn.addEventListener("click",()=>{
 
 loadVideoBtn.addEventListener("click",()=>{
   videoInput.click();
+});
+
+videoInput.addEventListener("change",(e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const url = URL.createObjectURL(file);
+  videoElement.src = url;
+  videoElement.play();
+  playPauseBtn.textContent = "PAUSE";
+  processVideo();
 });
 
 playPauseBtn.addEventListener("click",()=>{
@@ -91,20 +123,13 @@ playPauseBtn.addEventListener("click",()=>{
   }
 });
 
-videoInput.addEventListener("change",(e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const url = URL.createObjectURL(file);
-  videoElement.src = url;
-  videoElement.play();
-  processVideo();
+resetBtn.addEventListener("click",()=>{
+  location.reload();
 });
 
-videoElement.addEventListener("loadedmetadata",()=>{
-  canvasElement.width = videoElement.videoWidth;
-  canvasElement.height = videoElement.videoHeight;
-  timeSlider.max = videoElement.duration;
-});
+/* ===============================
+ Slider
+=============================== */
 
 timeSlider.addEventListener("input",()=>{
   videoElement.currentTime = timeSlider.value;
@@ -114,28 +139,30 @@ videoElement.addEventListener("timeupdate",()=>{
   timeSlider.value = videoElement.currentTime;
 });
 
+/* ===============================
+ Video Loop
+=============================== */
+
 async function processVideo(){
   if(videoElement.paused || videoElement.ended) return;
   await pose.send({image:videoElement});
   requestAnimationFrame(processVideo);
 }
 
-resetBtn.addEventListener("click",()=>{
-  location.reload();
-});
-
-/* ===== Peaks ===== */
+/* ===============================
+ Peaks
+=============================== */
 
 let peakThoraxArm = 0;
 let peakThoraxScapula = 0;
 let peakScapulaArm = 0;
 
-/* ===== Main ===== */
+/* ===============================
+ Main
+=============================== */
 
 function onResults(results){
 
-  canvasElement.width = videoElement.videoWidth;
-  canvasElement.height = videoElement.videoHeight;
   canvasCtx.clearRect(0,0,canvasElement.width,canvasElement.height);
 
   if(!results.poseLandmarks) return;
@@ -196,10 +223,32 @@ function onResults(results){
       "肩甲帯×上腕ピーク："+peakScapulaArm.toFixed(1)+"°";
   }
 
-  evalDisplay.textContent = "評価："+currentMode;
+  let evalText="";
+
+  if(currentMode==="pitch"){
+    if(thoraxArmAngle<20) evalText="腕主導";
+    else if(thoraxArmAngle<35) evalText="分離小";
+    else if(thoraxArmAngle<50) evalText="実用分離";
+    else evalText="高分離";
+  }
+
+  if(currentMode==="bat"){
+    if(thoraxArmAngle<20) evalText="手打ち傾向";
+    else if(thoraxArmAngle<35) evalText="分離小トップ";
+    else if(thoraxArmAngle<50) evalText="実用トップ";
+    else evalText="高捻転差トップ";
+  }
+
+  evalDisplay.textContent="評価："+evalText;
+
+  drawLine(LShoulder,RShoulder,"#38bdf8");     // thorax
+  drawLine(scapulaCenter,RShoulder,"#f472b6"); // scapula
+  drawLine(RShoulder,RElbow,"#facc15");        // arm
 }
 
-/* ===== Drawing ===== */
+/* ===============================
+ Drawing
+=============================== */
 
 function drawLine(a,b,color){
   canvasCtx.beginPath();
