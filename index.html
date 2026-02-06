@@ -11,19 +11,29 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 </head>
+  
 <body>
 <header>
 <h1>構造分離モニタ（背面撮影）</h1>
+
+<select id="modeSelect">
+  <option value="pitch">投球モード</option>
+  <option value="bat">打撃モード</option>
+</select>
+
 <div id="angleDisplay">0°</div>
 <div id="evalDisplay">評価：--</div>
 <div id="peakDisplay">胸郭×上腕ピーク：0°</div>
 <div id="scapulaPeakDisplay">胸郭×肩甲帯ピーク：0°</div>
 <div id="armScapulaPeakDisplay">肩甲帯×上腕ピーク：0°</div>
+
 <button id="startBtn">START CAMERA</button>
 <button id="loadVideoBtn">LOAD VIDEO</button>
 <button id="resetBtn">RESET</button>
+
 <input type="file" id="videoInput" accept="video/*" hidden>
 </header>
+
 <main>
 <video id="video" autoplay playsinline muted></video>
 <canvas id="canvas"></canvas>
