@@ -132,8 +132,11 @@ resetBtn.addEventListener("click",()=>{
  Slider
 =============================== */
 
-timeSlider.addEventListener("input",()=>{
+timeSlider.addEventListener("input", async ()=>{
   videoElement.currentTime = timeSlider.value;
+
+  // スライダー操作時も1フレーム解析
+  await pose.send({image:videoElement});
 });
 
 videoElement.addEventListener("timeupdate",()=>{
