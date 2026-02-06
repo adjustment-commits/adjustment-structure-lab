@@ -1,6 +1,9 @@
 const videoElement = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
 const canvasCtx = canvasElement.getContext("2d");
+const playPauseBtn = document.getElementById("playPauseBtn");
+const timeSlider = document.getElementById("timeSlider");
+
 
 const angleDisplay = document.getElementById("angleDisplay");
 const evalDisplay = document.getElementById("evalDisplay");
@@ -15,6 +18,7 @@ const videoInput = document.getElementById("videoInput");
 
 const modeSelect = document.getElementById("modeSelect");
 let currentMode = "pitch";
+
 
 /* ===== Utility ===== */
 
@@ -76,6 +80,17 @@ loadVideoBtn.addEventListener("click",()=>{
   videoInput.click();
 });
 
+playPauseBtn.addEventListener("click",()=>{
+  if(videoElement.paused){
+    videoElement.play();
+    playPauseBtn.textContent = "PAUSE";
+    processVideo();
+  }else{
+    videoElement.pause();
+    playPauseBtn.textContent = "PLAY";
+  }
+});
+
 videoInput.addEventListener("change",(e)=>{
   const file = e.target.files[0];
   if(!file) return;
@@ -83,6 +98,20 @@ videoInput.addEventListener("change",(e)=>{
   videoElement.src = url;
   videoElement.play();
   processVideo();
+});
+
+videoElement.addEventListener("loadedmetadata",()=>{
+  canvasElement.width = videoElement.videoWidth;
+  canvasElement.height = videoElement.videoHeight;
+  timeSlider.max = videoElement.duration;
+});
+
+timeSlider.addEventListener("input",()=>{
+  videoElement.currentTime = timeSlider.value;
+});
+
+videoElement.addEventListener("timeupdate",()=>{
+  timeSlider.value = videoElement.currentTime;
 });
 
 async function processVideo(){
