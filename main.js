@@ -124,6 +124,7 @@ playPauseBtn.addEventListener("click",()=>{
 });
 
 resetBtn.addEventListener("click",()=>{
+  isProcessing = false;
   location.reload();
 });
 
@@ -140,13 +141,28 @@ videoElement.addEventListener("timeupdate",()=>{
 });
 
 /* ===============================
- Video Loop
+ Video Loop（多重起動防止）
 =============================== */
 
+let isProcessing = false;
+
 async function processVideo(){
-  if(videoElement.paused || videoElement.ended) return;
-  await pose.send({image:videoElement});
-  requestAnimationFrame(processVideo);
+
+  if(isProcessing) return;
+  isProcessing = true;
+
+  async function loop(){
+
+    if(videoElement.paused || videoElement.ended){
+      isProcessing = false;
+      return;
+    }
+
+    await pose.send({image:videoElement});
+    requestAnimationFrame(loop);
+  }
+
+  loop();
 }
 
 /* ===============================
@@ -167,11 +183,18 @@ function onResults(results){
 
   if(!results.poseLandmarks) return;
 
-  drawConnectors(canvasCtx,results.poseLandmarks,POSE_CONNECTIONS,
-    {color:"#555",lineWidth:2});
+  drawConnectors(
+    canvasCtx,
+    results.poseLandmarks,
+    POSE_CONNECTIONS,
+    {color:"#555",lineWidth:2}
+  );
 
-  drawLandmarks(canvasCtx,results.poseLandmarks,
-    {color:"#22c55e",lineWidth:1});
+  drawLandmarks(
+    canvasCtx,
+    results.poseLandmarks,
+    {color:"#22c55e",lineWidth:1}
+  );
 
   const LShoulder = results.poseLandmarks[11];
   const RShoulder = results.poseLandmarks[12];
@@ -241,7 +264,7 @@ function onResults(results){
 
   evalDisplay.textContent="評価："+evalText;
 
-  drawLine(LShoulder,RShoulder,"#38bdf8");     // thorax
+  drawLine(LShoulder,RShoulder,"#38bdf8");      // thorax
   drawLine(scapulaCenter,RShoulder,"#f472b6"); // scapula
   drawLine(RShoulder,RElbow,"#facc15");        // arm
 }
