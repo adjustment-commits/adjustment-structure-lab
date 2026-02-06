@@ -2,25 +2,25 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <title>Kinetic Pro Structure Lab</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 
 <style>
 html,body{
 margin:0;padding:0;width:100%;height:100%;
-overflow:hidden;background:#000;color:#fff;
-font-family:sans-serif;
+background:#000;color:#fff;
+font-family:sans-serif;overflow:hidden;
 }
 #layout{
 display:grid;
-grid-template-rows:70px 1fr 300px;
-width:100vw;height:100vh;
+grid-template-rows:70px 1fr 280px;
+height:100vh;
 }
 .header{
-background:#1a1a1a;
 display:flex;gap:10px;
-padding:10px;
+padding:10px;background:#111;
 border-bottom:1px solid #333;
 }
 .top-btn{
@@ -30,35 +30,56 @@ border:1px solid #555;
 border-radius:8px;
 font-weight:bold;
 }
-.main-view{
+.main{
 position:relative;
 display:flex;
 justify-content:center;
 align-items:center;
 }
-canvas{max-width:100%;max-height:100%;}
+canvas{
+max-width:100%;
+max-height:100%;
+}
+.badges{
+position:absolute;
+top:10px;left:10px;
+}
+.badge{
+background:rgba(0,0,0,0.8);
+padding:6px 10px;
+margin-bottom:6px;
+border-left:5px solid #00ffcc;
+font-size:13px;
+}
 .deck{
 background:#111;
 border-top:2px solid #444;
 padding:15px;
 }
-.badge{
-background:rgba(0,0,0,0.8);
-padding:6px 10px;
-border-left:5px solid #00ffcc;
-margin-bottom:6px;
-font-size:13px;
-}
-.play-trigger{
+.play{
 width:70px;height:70px;
 border-radius:50%;
+font-size:32px;
 background:#00ffcc;
-border:none;font-size:32px;
+border:none;
 }
 input[type=range]{
 width:100%;
 height:40px;
 accent-color:#00ffcc;
+}
+.rec{
+background:#441111;
+color:#ff4444;
+border:2px solid #ff4444;
+border-radius:8px;
+height:45px;
+width:100%;
+font-weight:bold;
+}
+.rec-active{
+background:#ff4444!important;
+color:#fff!important;
 }
 </style>
 </head>
@@ -73,30 +94,34 @@ accent-color:#00ffcc;
 <input type="file" id="up" accept="video/*" hidden>
 </label>
 
-<select id="md" class="top-btn">
+<select id="mode" class="top-btn">
 <option value="pitch">投球</option>
 <option value="bat">打撃</option>
 </select>
 </div>
 
-<div class="main-view">
+<div class="main">
 <canvas id="cv"></canvas>
 
-<div style="position:absolute;top:10px;left:10px">
-<div id="ang1" class="badge">胸郭×骨盤：--</div>
-<div id="ang2" class="badge">胸郭×上腕：--</div>
-<div id="ang3" class="badge">骨盤×上腕：--</div>
+<div class="badges">
+<div id="a1" class="badge">胸郭×骨盤：--</div>
+<div id="a2" class="badge">胸郭×上腕：--</div>
+<div id="a3" class="badge">骨盤×上腕：--</div>
 </div>
 </div>
 
 <div class="deck">
 
-<button class="play-trigger" id="pp">▶</button>
+<button id="pp" class="play">▶</button>
 
 <div>
-<span id="cn">0.00</span> / <span id="tn">0.00</span>
+<span id="cn">0.00</span> /
+<span id="tn">0.00</span>s
 <input type="range" id="sk" step="0.001">
 </div>
+
+<br>
+<button id="recBtn" class="rec">解析映像保存</button>
 
 </div>
 
@@ -106,29 +131,23 @@ accent-color:#00ffcc;
 
 <script>
 
+/* ---------- DOM ---------- */
+
 const vd=document.getElementById("vd");
 const cv=document.getElementById("cv");
 const ctx=cv.getContext("2d");
 const sk=document.getElementById("sk");
 const pp=document.getElementById("pp");
 
-const ang1=document.getElementById("ang1");
-const ang2=document.getElementById("ang2");
-const ang3=document.getElementById("ang3");
-
-let seeking=false;
+const a1=document.getElementById("a1");
+const a2=document.getElementById("a2");
+const a3=document.getElementById("a3");
 
 /* ---------- utility ---------- */
 
-function vec(a,b){
-return {x:b.x-a.x,y:b.y-a.y};
-}
-function mag(v){
-return Math.sqrt(v.x*v.x+v.y*v.y);
-}
-function dot(a,b){
-return a.x*b.x+a.y*b.y;
-}
+function vec(a,b){return{x:b.x-a.x,y:b.y-a.y};}
+function mag(v){return Math.sqrt(v.x*v.x+v.y*v.y);}
+function dot(a,b){return a.x*b.x+a.y*b.y;}
 function angle(v1,v2){
 const c=dot(v1,v2)/(mag(v1)*mag(v2));
 return Math.acos(Math.min(Math.max(c,-1),1))*180/Math.PI;
@@ -148,36 +167,37 @@ minTrackingConfidence:0.5
 });
 
 pose.onResults(r=>{
-if(!r.image) return;
+if(!r.image)return;
 
 cv.width=r.image.width;
 cv.height=r.image.height;
+
 ctx.clearRect(0,0,cv.width,cv.height);
 ctx.drawImage(r.image,0,0,cv.width,cv.height);
 
-if(!r.poseLandmarks) return;
+if(!r.poseLandmarks)return;
 const lm=r.poseLandmarks;
 
-/* ----- vectors ----- */
+/* vectors */
 const thorax=vec(lm[11],lm[12]);
 const pelvis=vec(lm[23],lm[24]);
 const arm=vec(lm[12],lm[14]);
 
-const a1=angle(thorax,pelvis);
-const a2=angle(thorax,arm);
-const a3=angle(pelvis,arm);
+const angTP=angle(thorax,pelvis);
+const angTA=angle(thorax,arm);
+const angPA=angle(pelvis,arm);
 
-ang1.innerText=`胸郭×骨盤：${a1.toFixed(1)}°`;
-ang2.innerText=`胸郭×上腕：${a2.toFixed(1)}°`;
-ang3.innerText=`骨盤×上腕：${a3.toFixed(1)}°`;
+a1.innerText=`胸郭×骨盤：${angTP.toFixed(1)}°`;
+a2.innerText=`胸郭×上腕：${angTA.toFixed(1)}°`;
+a3.innerText=`骨盤×上腕：${angPA.toFixed(1)}°`;
 
 /* draw */
-draw(lm[11],lm[12],"#00ffff",6); // thorax
-draw(lm[23],lm[24],"#00ff00",6); // pelvis
-draw(lm[12],lm[14],"#ffcc00",8); // arm
+draw(lm[11],lm[12],"#00ffff",6);
+draw(lm[23],lm[24],"#00ff00",6);
+draw(lm[12],lm[14],"#ffcc00",8);
 });
 
-/* ---------- drawing ---------- */
+/* ---------- draw ---------- */
 
 function draw(a,b,c,w){
 ctx.beginPath();
@@ -188,7 +208,9 @@ ctx.lineWidth=w;
 ctx.stroke();
 }
 
-/* ---------- video loop ---------- */
+/* ---------- loop ---------- */
+
+let seeking=false;
 
 async function loop(){
 if(!vd.paused||seeking){
@@ -216,11 +238,11 @@ vd.currentTime=sk.value;
 seeking=true;
 };
 
-sk.onchange=()=>{seeking=false;}
+sk.onchange=()=>{seeking=false;};
 
 document.getElementById("up").onchange=e=>{
 const f=e.target.files[0];
-if(!f) return;
+if(!f)return;
 vd.src=URL.createObjectURL(f);
 vd.onloadedmetadata=()=>{
 sk.max=vd.duration;
@@ -229,6 +251,37 @@ vd.play();
 pp.innerText="‖";
 loop();
 };
+};
+
+/* ---------- recording ---------- */
+
+let recorder;
+let chunks=[];
+
+document.getElementById("recBtn").onclick=()=>{
+const btn=document.getElementById("recBtn");
+
+if(!recorder||recorder.state==="inactive"){
+chunks=[];
+const stream=cv.captureStream(30);
+recorder=new MediaRecorder(stream,{mimeType:"video/webm"});
+recorder.ondataavailable=e=>chunks.push(e.data);
+recorder.onstop=()=>{
+const blob=new Blob(chunks,{type:"video/webm"});
+const url=URL.createObjectURL(blob);
+const a=document.createElement("a");
+a.href=url;
+a.download="analysis_video.webm";
+a.click();
+};
+recorder.start();
+btn.classList.add("rec-active");
+btn.innerText="録画停止 → 保存";
+}else{
+recorder.stop();
+btn.classList.remove("rec-active");
+btn.innerText="解析映像保存";
+}
 };
 
 </script>
