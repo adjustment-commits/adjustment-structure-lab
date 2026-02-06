@@ -19,9 +19,11 @@ font-family:sans-serif;
 overflow:hidden;
 }
 
+/* ===== Layout ===== */
+
 #layout{
 display:grid;
-grid-template-rows:70px 1fr 300px;
+grid-template-rows:70px 1fr auto;
 width:100vw;
 height:100vh;
 }
@@ -42,7 +44,12 @@ color:#fff;
 border:1px solid #555;
 border-radius:8px;
 font-weight:bold;
+font-size:13px;
+letter-spacing:0.08em;
+text-transform:uppercase;
 }
+
+/* ===== Main ===== */
 
 .main-view{
 position:relative;
@@ -71,10 +78,14 @@ border-left:4px solid #00ffcc;
 font-size:12px;
 }
 
+/* ===== Deck ===== */
+
 .deck{
 background:#111;
 border-top:1px solid #333;
 padding:12px;
+max-height:40vh;
+overflow-y:auto;
 }
 
 .play{
@@ -120,19 +131,24 @@ color:#fff!important;
 
 <div id="layout">
 
+<!-- ===== Header ===== -->
 <div class="header">
+
 <label class="top-btn">
-動画選択
+LOAD VIDEO
 <input type="file" id="up" accept="video/*" hidden>
 </label>
 
 <select id="vw" class="top-btn">
-<option value="both">実写＋骨格</option>
-<option value="stick">骨格のみ</option>
+<option value="both">VIDEO + SKELETON</option>
+<option value="stick">SKELETON ONLY</option>
 </select>
+
 </div>
 
+<!-- ===== Main ===== -->
 <div class="main-view">
+
 <canvas id="cv"></canvas>
 
 <div class="tags">
@@ -142,8 +158,10 @@ color:#fff!important;
 <div id="rir" class="badge">右肩IR：--</div>
 <div id="lir" class="badge">左肩IR：--</div>
 </div>
+
 </div>
 
+<!-- ===== Deck ===== -->
 <div class="deck">
 
 <button id="pp" class="play">▶</button>
@@ -164,7 +182,7 @@ color:#fff!important;
 
 <script>
 
-/* ---------- DOM ---------- */
+/* ===== DOM ===== */
 
 const vd=document.getElementById("vd");
 const cv=document.getElementById("cv");
@@ -178,7 +196,7 @@ const sa=document.getElementById("sa");
 const rir=document.getElementById("rir");
 const lir=document.getElementById("lir");
 
-/* ---------- utility ---------- */
+/* ===== Utility ===== */
 
 function v(a,b){return{x:b.x-a.x,y:b.y-a.y};}
 function mag(v){return Math.sqrt(v.x*v.x+v.y*v.y);}
@@ -195,7 +213,7 @@ const d=(v1.x*v2.x+v1.y*v2.y)/(mag(v1)*mag(v2));
 return Math.acos(Math.min(Math.max(d,-1),1))*180/Math.PI;
 }
 
-/* ---------- MediaPipe ---------- */
+/* ===== MediaPipe ===== */
 
 const pose=new Pose({
 locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
@@ -208,8 +226,7 @@ minDetectionConfidence:0.5,
 minTrackingConfidence:0.5
 });
 
-let prevR=null;
-let prevL=null;
+let prevR=null, prevL=null;
 const IR_THRESHOLD=120;
 
 pose.onResults(r=>{
@@ -226,7 +243,8 @@ ctx.drawImage(r.image,0,0,cv.width,cv.height);
 if(!r.poseLandmarks)return;
 const lm=r.poseLandmarks;
 
-/* vectors */
+/* ===== ② ===== */
+
 const thorax=v(lm[11],lm[12]);
 const pelvis=v(lm[23],lm[24]);
 const arm=v(lm[12],lm[14]);
@@ -236,47 +254,41 @@ x:(lm[11].x+lm[12].x)/2,
 y:(lm[11].y+lm[12].y)/2
 };
 
-const pelvisCenter={
-x:(lm[23].x+lm[24].x)/2,
-y:(lm[23].y+lm[24].y)/2
-};
-
 const scapulaVec=v(thoraxCenter,lm[12]);
 
-/* angles ② */
-const aTP=ang(thorax,pelvis);
-const aTS=ang(thorax,scapulaVec);
-const aSA=ang(scapulaVec,arm);
+tp.innerText=`胸郭×骨盤：${ang(thorax,pelvis).toFixed(1)}°`;
+ts.innerText=`胸郭×肩甲帯：${ang(thorax,scapulaVec).toFixed(1)}°`;
+sa.innerText=`肩甲帯×上腕：${ang(scapulaVec,arm).toFixed(1)}°`;
 
-tp.innerText=`胸郭×骨盤：${aTP.toFixed(1)}°`;
-ts.innerText=`胸郭×肩甲帯：${aTS.toFixed(1)}°`;
-sa.innerText=`肩甲帯×上腕：${aSA.toFixed(1)}°`;
-
-/* ③ 肩IR切替 */
+/* ===== ③ ===== */
 
 const rA=jointAngle(lm[12],lm[14],lm[16]);
 const lA=jointAngle(lm[11],lm[13],lm[15]);
 
 if(prevR!==null){
-const sw=prevR>IR_THRESHOLD && rA<=IR_THRESHOLD;
-rir.innerText= sw ? "右肩IR：切替" : "右肩IR：--";
-}
-if(prevL!==null){
-const sw=prevL>IR_THRESHOLD && lA<=IR_THRESHOLD;
-lir.innerText= sw ? "左肩IR：切替" : "左肩IR：--";
+rir.innerText=(prevR>IR_THRESHOLD && rA<=IR_THRESHOLD)
+? "右肩IR：切替"
+: "右肩IR：--";
 }
 
-prevR=rA;
-prevL=lA;
+if(prevL!==null){
+lir.innerText=(prevL>IR_THRESHOLD && lA<=IR_THRESHOLD)
+? "左肩IR：切替"
+: "左肩IR：--";
+}
+
+prevR=rA; prevL=lA;
 
 /* draw */
+
 draw(lm[11],lm[12],"#00ffff",6);
 draw(lm[23],lm[24],"#00ff00",6);
 draw(thoraxCenter,lm[12],"#ff66ff",6);
 draw(lm[12],lm[14],"#ffcc00",8);
+
 });
 
-/* ---------- draw ---------- */
+/* ===== draw ===== */
 
 function draw(a,b,c,w){
 ctx.beginPath();
@@ -287,7 +299,7 @@ ctx.lineWidth=w;
 ctx.stroke();
 }
 
-/* ---------- loop ---------- */
+/* ===== Loop ===== */
 
 let seeking=false;
 
@@ -302,7 +314,7 @@ document.getElementById("cn").innerText=vd.currentTime.toFixed(2);
 requestAnimationFrame(loop);
 }
 
-/* ---------- controls ---------- */
+/* ===== Controls ===== */
 
 pp.onclick=()=>{
 if(vd.paused){
@@ -316,7 +328,6 @@ sk.oninput=()=>{
 vd.currentTime=sk.value;
 seeking=true;
 };
-
 sk.onchange=()=>{seeking=false;};
 
 document.getElementById("up").onchange=e=>{
@@ -332,10 +343,9 @@ loop();
 };
 };
 
-/* ---------- recording ---------- */
+/* ===== Recording ===== */
 
-let recorder;
-let chunks=[];
+let recorder,chunks=[];
 
 document.getElementById("recBtn").onclick=()=>{
 const btn=document.getElementById("recBtn");
