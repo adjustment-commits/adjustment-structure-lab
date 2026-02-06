@@ -1,165 +1,182 @@
 const videoElement = document.getElementById("video");
 const canvasElement = document.getElementById("canvas");
 const canvasCtx = canvasElement.getContext("2d");
+
 const angleDisplay = document.getElementById("angleDisplay");
 const evalDisplay = document.getElementById("evalDisplay");
+const peakDisplay = document.getElementById("peakDisplay");
+const scapulaPeakDisplay = document.getElementById("scapulaPeakDisplay");
+const armScapulaPeakDisplay = document.getElementById("armScapulaPeakDisplay");
+
 const startBtn = document.getElementById("startBtn");
 const loadVideoBtn = document.getElementById("loadVideoBtn");
 const resetBtn = document.getElementById("resetBtn");
 const videoInput = document.getElementById("videoInput");
 
-/* ===============================
-Utility
-=============================== */
+const modeSelect = document.getElementById("modeSelect");
+let currentMode = "pitch";
+
+/* ===== Utility ===== */
 
 function vector(a,b){
-return { x: b.x - a.x, y: b.y - a.y };
+  return { x: b.x - a.x, y: b.y - a.y };
 }
 
 function magnitude(v){
-return Math.sqrt(v.x * v.x + v.y * v.y);
+  return Math.sqrt(v.x*v.x + v.y*v.y);
 }
 
 function dot(a,b){
-return a.x * b.x + a.y * b.y;
+  return a.x*b.x + a.y*b.y;
 }
 
 function angleBetween(v1,v2){
-const cos = dot(v1,v2) / (magnitude(v1) * magnitude(v2));
-const rad = Math.acos(Math.min(Math.max(cos,-1),1));
-return rad * 180 / Math.PI;
+  const cos = dot(v1,v2)/(magnitude(v1)*magnitude(v2));
+  const rad = Math.acos(Math.min(Math.max(cos,-1),1));
+  return rad * 180 / Math.PI;
 }
 
-/* ===============================
-MediaPipe Pose
-=============================== */
+/* ===== Mode ===== */
+
+modeSelect.addEventListener("change",()=>{
+  currentMode = modeSelect.value;
+});
+
+/* ===== MediaPipe ===== */
 
 const pose = new Pose({
-locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
 
 pose.setOptions({
-modelComplexity:1,
-smoothLandmarks:true,
-enableSegmentation:false,
-minDetectionConfidence:0.5,
-minTrackingConfidence:0.5
+  modelComplexity:1,
+  smoothLandmarks:true,
+  enableSegmentation:false,
+  minDetectionConfidence:0.5,
+  minTrackingConfidence:0.5
 });
 
 pose.onResults(onResults);
 
 const camera = new Camera(videoElement,{
-onFrame: async()=>{
-await pose.send({image:videoElement});
-},
-width:640,
-height:480
+  onFrame: async()=>{
+    await pose.send({image:videoElement});
+  },
+  width:640,
+  height:480
 });
 
-/* ===============================
-Camera Start
-=============================== */
+/* ===== Buttons ===== */
 
 startBtn.addEventListener("click",()=>{
-camera.start();
-startBtn.style.display="none";
+  camera.start();
 });
 
-/* ===============================
-Reset
-=============================== */
+loadVideoBtn.addEventListener("click",()=>{
+  videoInput.click();
+});
+
+videoInput.addEventListener("change",(e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const url = URL.createObjectURL(file);
+  videoElement.src = url;
+  videoElement.play();
+  processVideo();
+});
+
+async function processVideo(){
+  if(videoElement.paused || videoElement.ended) return;
+  await pose.send({image:videoElement});
+  requestAnimationFrame(processVideo);
+}
 
 resetBtn.addEventListener("click",()=>{
   location.reload();
 });
 
-/* ===============================
-Load Video
-=============================== */
+/* ===== Peaks ===== */
 
-loadVideoBtn.addEventListener("click",()=>{
-videoInput.click();
-});
+let peakThoraxArm = 0;
+let peakThoraxScapula = 0;
+let peakScapulaArm = 0;
 
-videoInput.addEventListener("change",(e)=>{
-const file = e.target.files[0];
-if(!file) return;
-
-const url = URL.createObjectURL(file);
-videoElement.src = url;
-videoElement.play();
-processVideo();
-});
-
-async function processVideo(){
-if(videoElement.paused || videoElement.ended) return;
-await pose.send({image:videoElement});
-requestAnimationFrame(processVideo);
-}
-
-/* ===============================
-Main
-=============================== */
+/* ===== Main ===== */
 
 function onResults(results){
 
-canvasElement.width = videoElement.videoWidth;
-canvasElement.height = videoElement.videoHeight;
+  canvasElement.width = videoElement.videoWidth;
+  canvasElement.height = videoElement.videoHeight;
+  canvasCtx.clearRect(0,0,canvasElement.width,canvasElement.height);
 
-canvasCtx.clearRect(0,0,canvasElement.width,canvasElement.height);
+  if(!results.poseLandmarks) return;
 
-if(!results.poseLandmarks) return;
+  drawConnectors(canvasCtx,results.poseLandmarks,POSE_CONNECTIONS,
+    {color:"#555",lineWidth:2});
 
-drawConnectors(
-canvasCtx,
-results.poseLandmarks,
-POSE_CONNECTIONS,
-{color:"#555",lineWidth:2}
-);
+  drawLandmarks(canvasCtx,results.poseLandmarks,
+    {color:"#22c55e",lineWidth:1});
 
-drawLandmarks(
-canvasCtx,
-results.poseLandmarks,
-{color:"#22c55e",lineWidth:1}
-);
+  const LShoulder = results.poseLandmarks[11];
+  const RShoulder = results.poseLandmarks[12];
+  const RElbow = results.poseLandmarks[14];
+  const LHip = results.poseLandmarks[23];
+  const RHip = results.poseLandmarks[24];
 
-const LShoulder = results.poseLandmarks[11];
-const RShoulder = results.poseLandmarks[12];
-const RElbow    = results.poseLandmarks[14];
+  const thorax = vector(LShoulder,RShoulder);
+  const arm = vector(RShoulder,RElbow);
 
-const thorax = vector(LShoulder,RShoulder);
-const arm    = vector(RShoulder,RElbow);
+  const thoraxCenter = {
+    x:(LShoulder.x+RShoulder.x)/2,
+    y:(LShoulder.y+RShoulder.y)/2
+  };
 
-const sepAngle = angleBetween(thorax,arm);
-angleDisplay.textContent = sepAngle.toFixed(1) + "°";
+  const pelvisCenter = {
+    x:(LHip.x+RHip.x)/2,
+    y:(LHip.y+RHip.y)/2
+  };
 
-let evalText = "";
+  const scapulaCenter = {
+    x:(thoraxCenter.x+pelvisCenter.x)/2,
+    y:(thoraxCenter.y+pelvisCenter.y)/2
+  };
 
-if(sepAngle < 20){
-evalText = "分離なし：腕と胸郭が同時に動いている";
-}else if(sepAngle < 35){
-evalText = "低分離：腕主導傾向";
-}else if(sepAngle < 50){
-evalText = "実用分離：胸郭主導で腕が遅れる";
-}else{
-evalText = "高分離：強い捻転差を作れている";
+  const scapulaVec = vector(scapulaCenter,RShoulder);
+
+  const thoraxArmAngle = angleBetween(thorax,arm);
+  const thoraxScapulaAngle = angleBetween(thorax,scapulaVec);
+  const scapulaArmAngle = angleBetween(scapulaVec,arm);
+
+  angleDisplay.textContent = thoraxArmAngle.toFixed(1)+"°";
+
+  if(thoraxArmAngle > peakThoraxArm){
+    peakThoraxArm = thoraxArmAngle;
+    peakDisplay.textContent =
+      "胸郭×上腕ピーク："+peakThoraxArm.toFixed(1)+"°";
+  }
+
+  if(thoraxScapulaAngle > peakThoraxScapula){
+    peakThoraxScapula = thoraxScapulaAngle;
+    scapulaPeakDisplay.textContent =
+      "胸郭×肩甲帯ピーク："+peakThoraxScapula.toFixed(1)+"°";
+  }
+
+  if(scapulaArmAngle > peakScapulaArm){
+    peakScapulaArm = scapulaArmAngle;
+    armScapulaPeakDisplay.textContent =
+      "肩甲帯×上腕ピーク："+peakScapulaArm.toFixed(1)+"°";
+  }
+
+  evalDisplay.textContent = "評価："+currentMode;
 }
 
-evalDisplay.textContent = "評価：" + evalText;
-
-drawLine(LShoulder,RShoulder,"#38bdf8");
-drawLine(RShoulder,RElbow,"#facc15");
-}
-
-/* ===============================
-Drawing Helpers
-=============================== */
+/* ===== Drawing ===== */
 
 function drawLine(a,b,color){
-canvasCtx.beginPath();
-canvasCtx.moveTo(a.x * canvasElement.width,  a.y * canvasElement.height);
-canvasCtx.lineTo(b.x * canvasElement.width,  b.y * canvasElement.height);
-canvasCtx.strokeStyle = color;
-canvasCtx.lineWidth = 4;
-canvasCtx.stroke();
+  canvasCtx.beginPath();
+  canvasCtx.moveTo(a.x*canvasElement.width,a.y*canvasElement.height);
+  canvasCtx.lineTo(b.x*canvasElement.width,b.y*canvasElement.height);
+  canvasCtx.strokeStyle=color;
+  canvasCtx.lineWidth=4;
+  canvasCtx.stroke();
 }
