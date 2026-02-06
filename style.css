@@ -51,13 +51,18 @@ font-weight:bold;
 main{
 position:relative;
 width:100vw;
+height:70vh;
 max-width:640px;
 margin:auto;
+display:flex;
+justify-content:center;
+align-items:center;
 }
 
 video,canvas{
 width:100%;
-height:auto;
+height:100%;
+object-fit:contain;
 border-radius:8px;
 }
 
