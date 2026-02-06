@@ -8,7 +8,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 
 <style>
-  
 html,body{
 margin:0;
 padding:0;
@@ -20,16 +19,14 @@ font-family:sans-serif;
 overflow:hidden;
 }
 
-/* 全体 */
 #layout{
-display:flex;
-flex-direction:column;
+display:grid;
+grid-template-rows:70px 1fr 300px;
+width:100vw;
 height:100vh;
 }
 
-/* 上段 */
 .header{
-flex:0 0 auto;
 display:flex;
 gap:10px;
 padding:10px;
@@ -47,14 +44,11 @@ border-radius:8px;
 font-weight:bold;
 }
 
-/* ===== 映像エリア ===== */
-.main{
-flex:1 1 auto;
+.main-view{
 position:relative;
 display:flex;
 justify-content:center;
 align-items:center;
-background:#000;
 }
 
 canvas{
@@ -63,27 +57,24 @@ height:100%;
 object-fit:contain;
 }
 
-/* 角度表示 */
-.badges{
+.tags{
 position:absolute;
 top:10px;
 left:10px;
 }
 
 .badge{
-background:rgba(0,0,0,0.7);
+background:rgba(0,0,0,0.75);
 padding:6px 10px;
 margin-bottom:6px;
 border-left:4px solid #00ffcc;
 font-size:12px;
 }
 
-/* ===== 下段操作 ===== */
 .deck{
-flex:0 0 auto;
 background:#111;
 border-top:1px solid #333;
-padding:10px;
+padding:12px;
 }
 
 .play{
@@ -95,30 +86,34 @@ background:#00ffcc;
 border:none;
 }
 
-/* スライダー */
 input[type=range]{
 width:100%;
 height:30px;
 accent-color:#00ffcc;
 }
 
-/* 録画 */
-.rec{
+.f-btn{
 margin-top:8px;
 width:100%;
-height:42px;
-background:#441111;
-color:#ff4444;
-border:2px solid #ff4444;
+height:44px;
+background:#2a2a2a;
+color:#fff;
+border:1px solid #555;
 border-radius:8px;
 font-weight:bold;
 }
 
+.rec{
+background:#333;
+color:#00ffcc;
+border:2px solid #00ffcc;
+}
+
 .rec-active{
-background:#ff4444!important;
+background:#ff3366!important;
 color:#fff!important;
 }
-</style/>
+</style>
 </head>
 
 <body>
@@ -131,19 +126,21 @@ color:#fff!important;
 <input type="file" id="up" accept="video/*" hidden>
 </label>
 
-<select id="mode" class="top-btn">
-<option value="pitch">投球</option>
-<option value="bat">打撃</option>
+<select id="vw" class="top-btn">
+<option value="both">実写＋骨格</option>
+<option value="stick">骨格のみ</option>
 </select>
 </div>
 
-<div class="main">
+<div class="main-view">
 <canvas id="cv"></canvas>
 
-<div class="badges">
-<div id="a1" class="badge">胸郭×骨盤：--</div>
-<div id="a2" class="badge">胸郭×上腕：--</div>
-<div id="a3" class="badge">骨盤×上腕：--</div>
+<div class="tags">
+<div id="tp" class="badge">胸郭×骨盤：--</div>
+<div id="ts" class="badge">胸郭×肩甲帯：--</div>
+<div id="sa" class="badge">肩甲帯×上腕：--</div>
+<div id="rir" class="badge">右肩IR：--</div>
+<div id="lir" class="badge">左肩IR：--</div>
 </div>
 </div>
 
@@ -157,8 +154,7 @@ color:#fff!important;
 <input type="range" id="sk" step="0.001">
 </div>
 
-<br>
-<button id="recBtn" class="rec">解析映像保存</button>
+<button id="recBtn" class="f-btn rec">● 解析映像保存</button>
 
 </div>
 
@@ -176,18 +172,27 @@ const ctx=cv.getContext("2d");
 const sk=document.getElementById("sk");
 const pp=document.getElementById("pp");
 
-const a1=document.getElementById("a1");
-const a2=document.getElementById("a2");
-const a3=document.getElementById("a3");
+const tp=document.getElementById("tp");
+const ts=document.getElementById("ts");
+const sa=document.getElementById("sa");
+const rir=document.getElementById("rir");
+const lir=document.getElementById("lir");
 
 /* ---------- utility ---------- */
 
-function vec(a,b){return{x:b.x-a.x,y:b.y-a.y};}
+function v(a,b){return{x:b.x-a.x,y:b.y-a.y};}
 function mag(v){return Math.sqrt(v.x*v.x+v.y*v.y);}
 function dot(a,b){return a.x*b.x+a.y*b.y;}
-function angle(v1,v2){
-const c=dot(v1,v2)/(mag(v1)*mag(v2));
+function ang(a,b){
+const c=dot(a,b)/(mag(a)*mag(b));
 return Math.acos(Math.min(Math.max(c,-1),1))*180/Math.PI;
+}
+
+function jointAngle(a,b,c){
+const v1={x:a.x-b.x,y:a.y-b.y};
+const v2={x:c.x-b.x,y:c.y-b.y};
+const d=(v1.x*v2.x+v1.y*v2.y)/(mag(v1)*mag(v2));
+return Math.acos(Math.min(Math.max(d,-1),1))*180/Math.PI;
 }
 
 /* ---------- MediaPipe ---------- */
@@ -203,6 +208,10 @@ minDetectionConfidence:0.5,
 minTrackingConfidence:0.5
 });
 
+let prevR=null;
+let prevL=null;
+const IR_THRESHOLD=120;
+
 pose.onResults(r=>{
 if(!r.image)return;
 
@@ -210,27 +219,60 @@ cv.width=r.image.width;
 cv.height=r.image.height;
 
 ctx.clearRect(0,0,cv.width,cv.height);
+if(document.getElementById("vw").value!=="stick"){
 ctx.drawImage(r.image,0,0,cv.width,cv.height);
+}
 
 if(!r.poseLandmarks)return;
 const lm=r.poseLandmarks;
 
 /* vectors */
-const thorax=vec(lm[11],lm[12]);
-const pelvis=vec(lm[23],lm[24]);
-const arm=vec(lm[12],lm[14]);
+const thorax=v(lm[11],lm[12]);
+const pelvis=v(lm[23],lm[24]);
+const arm=v(lm[12],lm[14]);
 
-const angTP=angle(thorax,pelvis);
-const angTA=angle(thorax,arm);
-const angPA=angle(pelvis,arm);
+const thoraxCenter={
+x:(lm[11].x+lm[12].x)/2,
+y:(lm[11].y+lm[12].y)/2
+};
 
-a1.innerText=`胸郭×骨盤：${angTP.toFixed(1)}°`;
-a2.innerText=`胸郭×上腕：${angTA.toFixed(1)}°`;
-a3.innerText=`骨盤×上腕：${angPA.toFixed(1)}°`;
+const pelvisCenter={
+x:(lm[23].x+lm[24].x)/2,
+y:(lm[23].y+lm[24].y)/2
+};
+
+const scapulaVec=v(thoraxCenter,lm[12]);
+
+/* angles ② */
+const aTP=ang(thorax,pelvis);
+const aTS=ang(thorax,scapulaVec);
+const aSA=ang(scapulaVec,arm);
+
+tp.innerText=`胸郭×骨盤：${aTP.toFixed(1)}°`;
+ts.innerText=`胸郭×肩甲帯：${aTS.toFixed(1)}°`;
+sa.innerText=`肩甲帯×上腕：${aSA.toFixed(1)}°`;
+
+/* ③ 肩IR切替 */
+
+const rA=jointAngle(lm[12],lm[14],lm[16]);
+const lA=jointAngle(lm[11],lm[13],lm[15]);
+
+if(prevR!==null){
+const sw=prevR>IR_THRESHOLD && rA<=IR_THRESHOLD;
+rir.innerText= sw ? "右肩IR：切替" : "右肩IR：--";
+}
+if(prevL!==null){
+const sw=prevL>IR_THRESHOLD && lA<=IR_THRESHOLD;
+lir.innerText= sw ? "左肩IR：切替" : "左肩IR：--";
+}
+
+prevR=rA;
+prevL=lA;
 
 /* draw */
 draw(lm[11],lm[12],"#00ffff",6);
 draw(lm[23],lm[24],"#00ff00",6);
+draw(thoraxCenter,lm[12],"#ff66ff",6);
 draw(lm[12],lm[14],"#ffcc00",8);
 });
 
@@ -300,7 +342,7 @@ const btn=document.getElementById("recBtn");
 
 if(!recorder||recorder.state==="inactive"){
 chunks=[];
-const stream=cv.captureStream(30);
+const stream=cv.captureStream(25);
 recorder=new MediaRecorder(stream,{mimeType:"video/webm"});
 recorder.ondataavailable=e=>chunks.push(e.data);
 recorder.onstop=()=>{
@@ -313,11 +355,11 @@ a.click();
 };
 recorder.start();
 btn.classList.add("rec-active");
-btn.innerText="録画停止 → 保存";
+btn.innerText="■ 保存終了";
 }else{
 recorder.stop();
 btn.classList.remove("rec-active");
-btn.innerText="解析映像保存";
+btn.innerText="● 解析映像保存";
 }
 };
 
