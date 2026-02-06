@@ -1,50 +1,237 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Adjustment Structure Lab</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#020617">
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Kinetic Pro Structure Lab</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+
+<style>
+html,body{
+margin:0;padding:0;width:100%;height:100%;
+overflow:hidden;background:#000;color:#fff;
+font-family:sans-serif;
+}
+#layout{
+display:grid;
+grid-template-rows:70px 1fr 300px;
+width:100vw;height:100vh;
+}
+.header{
+background:#1a1a1a;
+display:flex;gap:10px;
+padding:10px;
+border-bottom:1px solid #333;
+}
+.top-btn{
+flex:1;height:45px;
+background:#333;color:#fff;
+border:1px solid #555;
+border-radius:8px;
+font-weight:bold;
+}
+.main-view{
+position:relative;
+display:flex;
+justify-content:center;
+align-items:center;
+}
+canvas{max-width:100%;max-height:100%;}
+.deck{
+background:#111;
+border-top:2px solid #444;
+padding:15px;
+}
+.badge{
+background:rgba(0,0,0,0.8);
+padding:6px 10px;
+border-left:5px solid #00ffcc;
+margin-bottom:6px;
+font-size:13px;
+}
+.play-trigger{
+width:70px;height:70px;
+border-radius:50%;
+background:#00ffcc;
+border:none;font-size:32px;
+}
+input[type=range]{
+width:100%;
+height:40px;
+accent-color:#00ffcc;
+}
+</style>
 </head>
-  
+
 <body>
-<header>
-<h1>構造分離モニタ（背面撮影）</h1>
 
-<select id="modeSelect">
-  <option value="pitch">投球モード</option>
-  <option value="bat">打撃モード</option>
+<div id="layout">
+
+<div class="header">
+<label class="top-btn">
+動画選択
+<input type="file" id="up" accept="video/*" hidden>
+</label>
+
+<select id="md" class="top-btn">
+<option value="pitch">投球</option>
+<option value="bat">打撃</option>
 </select>
+</div>
 
-<div id="angleDisplay">0°</div>
-<div id="evalDisplay">評価：--</div>
-<div id="peakDisplay">胸郭×上腕ピーク：0°</div>
-<div id="scapulaPeakDisplay">胸郭×肩甲帯ピーク：0°</div>
-<div id="armScapulaPeakDisplay">肩甲帯×上腕ピーク：0°</div>
+<div class="main-view">
+<canvas id="cv"></canvas>
 
-<button id="startBtn">START CAMERA</button>
-<button id="loadVideoBtn">LOAD VIDEO</button>
-<button id="resetBtn">RESET</button>
-<button id="playPauseBtn">PLAY</button>
+<div style="position:absolute;top:10px;left:10px">
+<div id="ang1" class="badge">胸郭×骨盤：--</div>
+<div id="ang2" class="badge">胸郭×上腕：--</div>
+<div id="ang3" class="badge">骨盤×上腕：--</div>
+</div>
+</div>
 
-<input id="timeSlider" type="range" min="0" max="100" value="0" step="0.01">
-  
-<input type="file" id="videoInput" accept="video/*" hidden>
-</header>
+<div class="deck">
 
-<main>
-<video id="video" autoplay playsinline muted></video>
-<canvas id="canvas"></canvas>
-</main>
-<footer>
-<p>adjustment-structure-lab</p>
-</footer>
-<script src="main.js"></script>
+<button class="play-trigger" id="pp">▶</button>
+
+<div>
+<span id="cn">0.00</span> / <span id="tn">0.00</span>
+<input type="range" id="sk" step="0.001">
+</div>
+
+</div>
+
+</div>
+
+<video id="vd" playsinline muted hidden></video>
+
+<script>
+
+const vd=document.getElementById("vd");
+const cv=document.getElementById("cv");
+const ctx=cv.getContext("2d");
+const sk=document.getElementById("sk");
+const pp=document.getElementById("pp");
+
+const ang1=document.getElementById("ang1");
+const ang2=document.getElementById("ang2");
+const ang3=document.getElementById("ang3");
+
+let seeking=false;
+
+/* ---------- utility ---------- */
+
+function vec(a,b){
+return {x:b.x-a.x,y:b.y-a.y};
+}
+function mag(v){
+return Math.sqrt(v.x*v.x+v.y*v.y);
+}
+function dot(a,b){
+return a.x*b.x+a.y*b.y;
+}
+function angle(v1,v2){
+const c=dot(v1,v2)/(mag(v1)*mag(v2));
+return Math.acos(Math.min(Math.max(c,-1),1))*180/Math.PI;
+}
+
+/* ---------- MediaPipe ---------- */
+
+const pose=new Pose({
+locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+});
+
+pose.setOptions({
+modelComplexity:1,
+smoothLandmarks:true,
+minDetectionConfidence:0.5,
+minTrackingConfidence:0.5
+});
+
+pose.onResults(r=>{
+if(!r.image) return;
+
+cv.width=r.image.width;
+cv.height=r.image.height;
+ctx.clearRect(0,0,cv.width,cv.height);
+ctx.drawImage(r.image,0,0,cv.width,cv.height);
+
+if(!r.poseLandmarks) return;
+const lm=r.poseLandmarks;
+
+/* ----- vectors ----- */
+const thorax=vec(lm[11],lm[12]);
+const pelvis=vec(lm[23],lm[24]);
+const arm=vec(lm[12],lm[14]);
+
+const a1=angle(thorax,pelvis);
+const a2=angle(thorax,arm);
+const a3=angle(pelvis,arm);
+
+ang1.innerText=`胸郭×骨盤：${a1.toFixed(1)}°`;
+ang2.innerText=`胸郭×上腕：${a2.toFixed(1)}°`;
+ang3.innerText=`骨盤×上腕：${a3.toFixed(1)}°`;
+
+/* draw */
+draw(lm[11],lm[12],"#00ffff",6); // thorax
+draw(lm[23],lm[24],"#00ff00",6); // pelvis
+draw(lm[12],lm[14],"#ffcc00",8); // arm
+});
+
+/* ---------- drawing ---------- */
+
+function draw(a,b,c,w){
+ctx.beginPath();
+ctx.moveTo(a.x*cv.width,a.y*cv.height);
+ctx.lineTo(b.x*cv.width,b.y*cv.height);
+ctx.strokeStyle=c;
+ctx.lineWidth=w;
+ctx.stroke();
+}
+
+/* ---------- video loop ---------- */
+
+async function loop(){
+if(!vd.paused||seeking){
+await pose.send({image:vd});
+if(!seeking){
+sk.value=vd.currentTime;
+document.getElementById("cn").innerText=vd.currentTime.toFixed(2);
+}
+}
+requestAnimationFrame(loop);
+}
+
+/* ---------- controls ---------- */
+
+pp.onclick=()=>{
+if(vd.paused){
+vd.play();pp.innerText="‖";
+}else{
+vd.pause();pp.innerText="▶";
+}
+};
+
+sk.oninput=()=>{
+vd.currentTime=sk.value;
+seeking=true;
+};
+
+sk.onchange=()=>{seeking=false;}
+
+document.getElementById("up").onchange=e=>{
+const f=e.target.files[0];
+if(!f) return;
+vd.src=URL.createObjectURL(f);
+vd.onloadedmetadata=()=>{
+sk.max=vd.duration;
+document.getElementById("tn").innerText=vd.duration.toFixed(2);
+vd.play();
+pp.innerText="‖";
+loop();
+};
+};
+
+</script>
 
 </body>
 </html>
